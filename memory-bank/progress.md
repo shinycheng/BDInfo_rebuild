@@ -55,8 +55,13 @@
 - **验证**: `dotnet build` 成功（0 错误），等待用户提供测试盘进行 `-t 1` 基线对比和并行运行验证。
 
 ## 阶段 4：多光盘级并行
-- [ ] 步骤 4.1 — 重构 Exec() 消除全局状态依赖
-- [ ] 步骤 4.2 — 将多光盘循环改为 Parallel.ForEach
+- [x] 步骤 4.1 — 重构 Exec() 消除全局状态依赖
+  - **完成时间**: 2026-03-15
+  - **变更**: 新增 `ProcessSingleDisc()` 静态方法，封装单盘 init → scan → report 流程。每次调用创建独立的 `CmdOptions` 克隆、`BDSettings` 实例和 error/debug 日志路径，不读写任何共享状态。
+- [x] 步骤 4.2 — 将多光盘循环改为 Parallel.ForEach
+  - **完成时间**: 2026-03-15
+  - **变更**: 将 `foreach (var subDir in subItems.OrderBy(...))` 替换为 `Parallel.ForEach(sortedItems, parallelOptions, ...)`。使用 `ConcurrentDictionary<string, string>` 收集 discPath → reportPath 映射。报告合并阶段保持串行，按原始排序顺序执行。`Program.cs` 从 112 行增至 152 行。
+- **验证**: `dotnet build` 成功（0 错误），等待用户提供多光盘测试路径进行验证。
 
 ## 阶段 5：最终验证与收尾
 - [ ] 步骤 5.1 — 全面正确性验证

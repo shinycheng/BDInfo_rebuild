@@ -1,9 +1,11 @@
 using BDCommon;
 using CommandLine;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace BDInfo
 {
@@ -42,21 +44,30 @@ namespace BDInfo
                     if (subItems.Length > 1 || isIsoLevel)
                     {
                         var oldOpt = Cloner.Clone(opts);
-                        List<string> reports = [];
+                        var sortedItems = subItems.OrderBy(s => s).ToArray();
 
-                        foreach (var subDir in subItems.OrderBy(s => s))
+                        // Thread-safe collection: discPath → reportPath
+                        var reportMap = new ConcurrentDictionary<string, string>();
+
+                        ParallelOptions parallelOptions = new()
                         {
-                            opts.Path = isIsoLevel ? subDir : Path.GetDirectoryName(subDir);
-                            if (!string.IsNullOrWhiteSpace(opts.ReportFileName))
-                            {
-                                var parent = Path.GetDirectoryName(opts.Path);
-                                opts.ReportFileName = isIsoLevel ? Path.Combine(parent, Path.GetFileNameWithoutExtension(opts.Path)) : Path.Combine(parent, Path.GetFileName(opts.Path)) + "." + Path.GetExtension(opts.ReportFileName).TrimStart('.');
-                                reports.Add(opts.ReportFileName);
-                            }
+                            MaxDegreeOfParallelism = bdinfoSettings.MaxThreads
+                        };
 
-                            BDROM bdrom = BDROMInitializer.InitBDROM(opts.Path, bdinfoSettings, error);
-                            BDROMScanner.ScanBDROM(bdrom, bdinfoSettings, ProductVersion, error, debug);
-                        }
+                        Parallel.ForEach(sortedItems, parallelOptions, subDir =>
+                        {
+                            string reportPath = ProcessSingleDisc(subDir, oldOpt, isIsoLevel);
+                            if (reportPath != null)
+                            {
+                                reportMap[subDir] = reportPath;
+                            }
+                        });
+
+                        // Merge reports in original sorted order (serial)
+                        var reports = sortedItems
+                            .Where(s => reportMap.ContainsKey(s))
+                            .Select(s => reportMap[s])
+                            .ToList();
 
                         if (reports.Count > 0)
                         {
@@ -106,6 +117,36 @@ namespace BDInfo
 
                 Environment.Exit(1);
             }
+        }
+
+        // Process a single disc: init → scan → report. No shared mutable state.
+        private static string ProcessSingleDisc(string subDir, CmdOptions originalOpts, bool isIsoLevel)
+        {
+            // Clone opts so each disc gets its own independent copy
+            var discOpts = Cloner.Clone(originalOpts);
+            discOpts.Path = isIsoLevel ? subDir : Path.GetDirectoryName(subDir);
+
+            // Per-disc error/debug log paths
+            string discError = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"error_{Path.GetFileName(discOpts.Path)}.log");
+            string discDebug = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"debug_{Path.GetFileName(discOpts.Path)}.log");
+
+            // Per-disc settings (reads from its own discOpts copy)
+            BDSettings discSettings = new BDSettings(discOpts);
+
+            string reportPath = null;
+            if (!string.IsNullOrWhiteSpace(discOpts.ReportFileName))
+            {
+                var parent = Path.GetDirectoryName(discOpts.Path);
+                discOpts.ReportFileName = isIsoLevel
+                    ? Path.Combine(parent, Path.GetFileNameWithoutExtension(discOpts.Path))
+                    : Path.Combine(parent, Path.GetFileName(discOpts.Path)) + "." + Path.GetExtension(discOpts.ReportFileName).TrimStart('.');
+                reportPath = discOpts.ReportFileName;
+            }
+
+            BDROM bdrom = BDROMInitializer.InitBDROM(discOpts.Path, discSettings, discError);
+            BDROMScanner.ScanBDROM(bdrom, discSettings, ProductVersion, discError, discDebug);
+
+            return reportPath;
         }
     }
 }

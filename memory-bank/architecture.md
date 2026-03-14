@@ -31,7 +31,7 @@ BDInfo.Core/
 │       └── IO/                  # I/O 工具（文件系统抽象）
 ├── BDInfo/                      # 主程序（命令行入口）
 │   ├── BDInfo.csproj
-│   ├── Program.cs               # 主入口：薄编排层（111 行）
+│   ├── Program.cs               # 主入口：薄编排层（152 行，含 ProcessSingleDisc）
 │   ├── BDROMInitializer.cs      # BDROM 初始化
 │   ├── BDROMScanner.cs          # 扫描编排（Parallel.ForEach 并行扫描，152 行）
 │   ├── ReportGenerator.cs       # 报告生成（.bdinfo 格式输出）
@@ -43,13 +43,23 @@ BDInfo.Core/
 
 ---
 
-## 核心数据流（Phase 3 之后）
+## 核心数据流（Phase 4 之后）
 
 ```
 Main(args) → Exec(opts)
   局部变量: error, debug, bdinfoSettings（无静态可变字段）
-  → BDROMInitializer.InitBDROM(path, settings, errorLogPath) → 返回 BDROM 实例
-  → BDROMScanner.ScanBDROM(bdrom, settings, productVersion, errorLogPath, debugLogPath)
+  → 判断是否多光盘
+  → 单盘: BDROMInitializer.InitBDROM() → BDROMScanner.ScanBDROM()
+  → 多盘: Parallel.ForEach(sortedItems, MaxDegreeOfParallelism) →
+      ProcessSingleDisc(subDir, originalOpts, isIsoLevel):
+        1. Clone opts → 独立 CmdOptions + BDSettings + error/debug log
+        2. BDROMInitializer.InitBDROM() → BDROM 实例
+        3. BDROMScanner.ScanBDROM() → 内部 Parallel.ForEach(streamFiles)
+        4. 返回 reportPath
+      → ConcurrentDictionary 收集 reportPath
+    → 串行合并报告（按原始排序）
+
+  BDROMScanner.ScanBDROM():
     → ScanBDROMWork():
       1. 准备阶段（串行）: 计算 TotalBytes, 构建 PlaylistMap, ClearBitrates
       2. 创建 ThreadSafeProgressReporter(totalBytes)
@@ -67,7 +77,7 @@ Main(args) → Exec(opts)
 
 | 类 | 文件 | 行数 | 职责 |
 |---|---|---|---|
-| `Program` | `BDInfo/Program.cs` | 111 | 薄编排层：CLI 解析 → 初始化 → 扫描 |
+| `Program` | `BDInfo/Program.cs` | 152 | 薄编排层：CLI 解析 → 初始化 → 扫描 + 多盘并行 |
 | `BDROMInitializer` | `BDInfo/BDROMInitializer.cs` | 113 | 创建 BDROM 实例、注册错误回调 |
 | `BDROMScanner` | `BDInfo/BDROMScanner.cs` | 152 | 并行扫描编排（Parallel.ForEach） |
 | `ReportGenerator` | `BDInfo/ReportGenerator.cs` | 1088 | 报告格式化输出 |
@@ -88,4 +98,13 @@ Main(args) → Exec(opts)
 4. **ConcurrentDictionary\<string, Exception\>**: 替代 `Dictionary` 收集扫描异常，无需外部加锁。
 5. **ClearBitrates 提前**: 从原来在准备阶段每个 streamFile 循环中重复调用改为单独遍历一次所有 playlist。
 6. **ScanBDROMState 精简**: 移除 `StreamFile`、`Exception`、`OnReportChange` 等并行不安全字段，仅保留初始化后只读的 `TotalBytes` 和 `PlaylistMap`。
+
+---
+
+## Phase 4 关键设计决策
+
+1. **ProcessSingleDisc 独立方法**: 封装单盘 init → scan → report 全流程，每次调用创建独立的 `CmdOptions` 克隆、`BDSettings` 实例和 error/debug 日志路径。
+2. **CmdOptions 克隆**: 使用 `Cloner.Clone()` 深拷贝，因 `BDSettings` 通过引用实时读取 `CmdOptions` 属性，各线程不能共享同一 opts。
+3. **ConcurrentDictionary\<string, string\>**: 收集 discPath → reportPath 映射，报告合并按原始排序顺序串行执行。
+4. **两级并行**: 多盘级 `Parallel.ForEach`（外层）+ Stream 文件级 `Parallel.ForEach`（内层），共享同一 `MaxDegreeOfParallelism` 设置。
 
