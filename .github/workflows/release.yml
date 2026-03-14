@@ -1,0 +1,89 @@
+# 自动构建并发布 Release
+# 触发条件：推送 v* 格式的 tag（例如 v1.0.0）
+# 产物：Windows x64 和 Linux x64 的自包含单文件可执行程序
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            artifact_name: BDInfo-win-x64
+            archive_cmd: Compress-Archive -Path publish/* -DestinationPath BDInfo-win-x64.zip
+            archive_ext: zip
+          - os: ubuntu-latest
+            rid: linux-x64
+            artifact_name: BDInfo-linux-x64
+            archive_cmd: tar -czf BDInfo-linux-x64.tar.gz -C publish .
+            archive_ext: tar.gz
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # 发布 BDInfo（主程序）
+      - name: 发布 BDInfo
+        run: >
+          dotnet publish BDInfo.Core/BDInfo/BDInfo.csproj
+          -c Release
+          -r ${{ matrix.rid }}
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -o publish
+
+      # 发布 BDExtractor
+      - name: 发布 BDExtractor
+        run: >
+          dotnet publish BDInfo.Core/BDExtractor/BDExtractor.csproj
+          -c Release
+          -r ${{ matrix.rid }}
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -o publish
+
+      # 打包压缩
+      - name: 打包
+        run: ${{ matrix.archive_cmd }}
+
+      # 上传构建产物
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_name }}.${{ matrix.archive_ext }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: 下载所有产物
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: 创建 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
