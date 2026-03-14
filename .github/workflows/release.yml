@@ -38,6 +38,10 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+          include-prerelease: true
+
+      - name: 验证 .NET 版本
+        run: dotnet --version
 
       # 发布 BDInfo（主程序）
       - name: 发布 BDInfo
