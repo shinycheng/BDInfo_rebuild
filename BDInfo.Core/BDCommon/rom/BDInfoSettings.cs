@@ -1,4 +1,4 @@
-﻿//============================================================================
+//============================================================================
 // BDInfo - Blu-ray Video and Audio Analysis Tool
 // Copyright © 2010 Cinema Squid
 //
@@ -42,5 +42,7 @@ namespace BDCommon
         public abstract bool IncludeVersionAndNotes { get; }
 
         public abstract bool GroupByTime { get; }
+
+        public abstract int MaxThreads { get; }
     }
 }

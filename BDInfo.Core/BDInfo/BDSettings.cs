@@ -1,4 +1,4 @@
-﻿using BDCommon;
+using BDCommon;
 using System;
 using System.IO;
 
@@ -29,5 +29,7 @@ namespace BDInfo
         public override bool IncludeVersionAndNotes => _opts?.IncludeVersionAndNotes ?? false;
 
         public override bool GroupByTime => _opts?.GroupByTime ?? false;
+
+        public override int MaxThreads => (_opts?.Threads ?? 0) > 0 ? _opts.Threads : Environment.ProcessorCount;
     }
 }

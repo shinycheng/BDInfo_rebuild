@@ -1,4 +1,4 @@
-﻿using CommandLine;
+using CommandLine;
 using System;
 
 namespace BDInfo
@@ -41,5 +41,8 @@ namespace BDInfo
 
         [Option('j', "groupbytime", Required = false, Default = null, HelpText = "Group by time")]
         public bool? GroupByTime { get; set; }
+
+        [Option('t', "threads", Required = false, Default = 0, HelpText = "Maximum number of parallel scan threads (default: number of CPU cores)")]
+        public int Threads { get; set; }
     }
 }

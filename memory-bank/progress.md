@@ -25,9 +25,16 @@
 - **验证**: `dotnet build` 成功（0 错误），扫描测试盘输出正常（exit 0），报告格式正确。
 
 ## 阶段 2：添加 `-t` / `--threads` 参数
-- [ ] 步骤 2.1 — 在 BDInfoSettings 接口中新增 MaxThreads
-- [ ] 步骤 2.2 — 在 CmdOptions 中新增 `-t` 参数
-- [ ] 步骤 2.3 — 在 BDSettings 中实现 MaxThreads
+- [x] 步骤 2.1 — 在 BDInfoSettings 接口中新增 MaxThreads
+  - **完成时间**: 2026-03-15
+  - **变更**: 在 `BDInfoSettings` 抽象类末尾新增 `public abstract int MaxThreads { get; }` 属性。
+- [x] 步骤 2.2 — 在 CmdOptions 中新增 `-t` 参数
+  - **完成时间**: 2026-03-15
+  - **变更**: 新增 `[Option('t', "threads", Default = 0)]` 属性，HelpText 为 `"Maximum number of parallel scan threads (default: number of CPU cores)"`。
+- [x] 步骤 2.3 — 在 BDSettings 中实现 MaxThreads
+  - **完成时间**: 2026-03-15
+  - **变更**: 新增 `MaxThreads` 属性实现，值 ≤ 0 时回退为 `Environment.ProcessorCount`。
+- **验证**: `dotnet build` 成功（0 错误），`--help` 输出包含 `-t, --threads` 参数说明。`-t 1` 扫描测试盘 `Mean.Guns.1997.Complete.BluRay-LAZERS`，报告与基线 `diff` 比较**完全一致**。
 
 ## 阶段 3：Stream 文件级并行化
 - [ ] 步骤 3.1 — 重构 ScanBDROMState 为线程安全版本
