@@ -108,3 +108,18 @@ Main(args) → Exec(opts)
 3. **ConcurrentDictionary\<string, string\>**: 收集 discPath → reportPath 映射，报告合并按原始排序顺序串行执行。
 4. **两级并行**: 多盘级 `Parallel.ForEach`（外层）+ Stream 文件级 `Parallel.ForEach`（内层），共享同一 `MaxDegreeOfParallelism` 设置。
 
+---
+
+## Phase 5 验证结果
+
+| 验证项 | 结果 |
+|--------|------|
+| `dotnet build` | ✅ 0 错误（23 个 NU1510 警告，均为系统包） |
+| `-t 1` 串行 vs 并行 `diff` | ✅ 报告字节级一致 |
+| `-t 16` 压力测试（3 次） | ✅ 两次成功完成，报告与基线完全一致，无崩溃无死锁 |
+| `--help` 参数完整性 | ✅ 包含所有参数（`-g`, `-e`, `-b`, `-l`, `-y`, `-v`, `-k`, `-m`, `-o`, `-q`, `-j`, `-t`） |
+| `Program.cs` 行数 | ✅ 152 行，仅 `static readonly` 字段 |
+| 新 NuGet 依赖 | ✅ 无新增（仅 `CommandLine` + 系统包） |
+| 新类独立文件 | ✅ `ReportGenerator`、`BDROMInitializer`、`BDROMScanner`、`ThreadSafeProgressReporter` 均在独立 `.cs` 文件中 |
+| `lock(playlist)` 保护 | ✅ `TSStreamFile.cs` 第 350 行和第 375 行 |
+
