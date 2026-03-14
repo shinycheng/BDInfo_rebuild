@@ -1,4 +1,4 @@
-﻿//============================================================================
+//============================================================================
 // BDInfo - Blu-ray Video and Audio Analysis Tool
 // Copyright © 2010 Cinema Squid
 //
@@ -347,13 +347,16 @@ public class TSStreamFile
 
         foreach (var playlist in _playlists)
         {
-            var packetSeconds = playlist.StreamClips.Where(clip => clip.AngleIndex == 0).Sum(clip => clip.PacketSeconds);
-
-            if (!(packetSeconds > 0)) continue;
-
-            foreach (var playlistStream in playlist.SortedStreams.Where(playlistStream => playlistStream.IsVBR))
+            lock (playlist)
             {
-                playlistStream.BitRate = (long)Math.Round(playlistStream.PayloadBytes * 8.0 / packetSeconds);
+                var packetSeconds = playlist.StreamClips.Where(clip => clip.AngleIndex == 0).Sum(clip => clip.PacketSeconds);
+
+                if (!(packetSeconds > 0)) continue;
+
+                foreach (var playlistStream in playlist.SortedStreams.Where(playlistStream => playlistStream.IsVBR))
+                {
+                    playlistStream.BitRate = (long)Math.Round(playlistStream.PayloadBytes * 8.0 / packetSeconds);
+                }
             }
         }
     }
@@ -369,45 +372,48 @@ public class TSStreamFile
 
         foreach (var playlist in _playlists)
         {
-            foreach (var clip in playlist.StreamClips.Where(clip => clip.Name == Name)
-                         .Where(clip =>
-                             streamTime == 0 || streamTime >= clip.TimeIn && streamTime <= clip.TimeOut))
+            lock (playlist)
             {
-                clip.PayloadBytes += streamState.WindowBytes;
-                clip.PacketCount += streamState.WindowPackets;
-
-                if (streamOffset > clip.TimeIn &&
-                    streamOffset - clip.TimeIn > clip.PacketSeconds)
+                foreach (var clip in playlist.StreamClips.Where(clip => clip.Name == Name)
+                             .Where(clip =>
+                                 streamTime == 0 || streamTime >= clip.TimeIn && streamTime <= clip.TimeOut))
                 {
-                    clip.PacketSeconds = streamOffset - clip.TimeIn;
-                }
+                    clip.PayloadBytes += streamState.WindowBytes;
+                    clip.PacketCount += streamState.WindowPackets;
 
-                var playlistStreams = playlist.Streams;
-                if (clip.AngleIndex > 0 &&
-                    clip.AngleIndex < playlist.AngleStreams.Count + 1)
-                {
-                    playlistStreams = playlist.AngleStreams[clip.AngleIndex - 1];
-                }
+                    if (streamOffset > clip.TimeIn &&
+                        streamOffset - clip.TimeIn > clip.PacketSeconds)
+                    {
+                        clip.PacketSeconds = streamOffset - clip.TimeIn;
+                    }
 
-                if (!playlistStreams.ContainsKey(pid)) continue;
+                    var playlistStreams = playlist.Streams;
+                    if (clip.AngleIndex > 0 &&
+                        clip.AngleIndex < playlist.AngleStreams.Count + 1)
+                    {
+                        playlistStreams = playlist.AngleStreams[clip.AngleIndex - 1];
+                    }
 
-                var stream = playlistStreams[pid];
+                    if (!playlistStreams.ContainsKey(pid)) continue;
 
-                stream.PayloadBytes += streamState.WindowBytes;
-                stream.PacketCount += streamState.WindowPackets;
+                    var stream = playlistStreams[pid];
 
-                if (stream.IsVideoStream)
-                {
-                    stream.PacketSeconds += streamInterval;
+                    stream.PayloadBytes += streamState.WindowBytes;
+                    stream.PacketCount += streamState.WindowPackets;
 
-                    stream.ActiveBitRate = (long)Math.Round(
-                        stream.PayloadBytes * 8.0 /
-                        stream.PacketSeconds);
-                }
+                    if (stream.IsVideoStream)
+                    {
+                        stream.PacketSeconds += streamInterval;
 
-                if (stream.StreamType == TSStreamType.AC3_TRUE_HD_AUDIO && ((TSAudioStream)stream).CoreStream != null)
-                {
-                    stream.ActiveBitRate -= ((TSAudioStream)stream).CoreStream.BitRate;
+                        stream.ActiveBitRate = (long)Math.Round(
+                            stream.PayloadBytes * 8.0 /
+                            stream.PacketSeconds);
+                    }
+
+                    if (stream.StreamType == TSStreamType.AC3_TRUE_HD_AUDIO && ((TSAudioStream)stream).CoreStream != null)
+                    {
+                        stream.ActiveBitRate -= ((TSAudioStream)stream).CoreStream.BitRate;
+                    }
                 }
             }
         }

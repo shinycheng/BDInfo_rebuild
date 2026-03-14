@@ -2,7 +2,9 @@ using BDCommon;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace BDInfo
 {
@@ -26,12 +28,13 @@ namespace BDInfo
         {
             ScanBDROMResult scanResult = new ScanBDROMResult { ScanException = new Exception("Scan is still running.") };
 
-            Timer timer = null;
             try
             {
                 ScanBDROMState scanState = new();
-                scanState.OnReportChange += ScanBDROMProgress;
 
+                // --- Preparation phase (serial) ---
+
+                // Calculate TotalBytes and build PlaylistMap
                 foreach (TSStreamFile streamFile in streamFiles)
                 {
                     if (settings.EnableSSIF &&
@@ -57,8 +60,6 @@ namespace BDInfo
 
                     foreach (TSPlaylistFile playlist in bdrom.PlaylistFiles.Values)
                     {
-                        playlist.ClearBitrates();
-
                         foreach (TSStreamClip clip in playlist.StreamClips)
                         {
                             if (clip.Name == streamFile.Name)
@@ -72,28 +73,43 @@ namespace BDInfo
                     }
                 }
 
-                timer = new Timer(ScanBDROMEvent, scanState, 1000, 1000);
-
-                foreach (TSStreamFile streamFile in streamFiles)
+                // ClearBitrates once per playlist (before parallel scan)
+                HashSet<TSPlaylistFile> clearedPlaylists = new();
+                foreach (TSPlaylistFile playlist in bdrom.PlaylistFiles.Values)
                 {
-                    scanState.StreamFile = streamFile;
-
-                    Thread thread = new(ScanBDROMThread);
-                    thread.Start(scanState);
-                    while (thread.IsAlive)
+                    if (clearedPlaylists.Add(playlist))
                     {
-                        Thread.Sleep(10);
-                    }
-
-                    if (streamFile.FileInfo != null)
-                        scanState.FinishedBytes += streamFile.FileInfo.Length;
-                    else
-                        scanState.FinishedBytes += streamFile.FileInfo.Length;
-                    if (scanState.Exception != null)
-                    {
-                        scanResult.FileExceptions[streamFile.Name] = scanState.Exception;
+                        playlist.ClearBitrates();
                     }
                 }
+
+                // --- Parallel scan phase ---
+                ThreadSafeProgressReporter reporter = new(scanState.TotalBytes);
+
+                ParallelOptions parallelOptions = new()
+                {
+                    MaxDegreeOfParallelism = settings.MaxThreads
+                };
+
+                Parallel.ForEach(streamFiles, parallelOptions, streamFile =>
+                {
+                    try
+                    {
+                        List<TSPlaylistFile> playlists = scanState.PlaylistMap[streamFile.Name];
+                        streamFile.Scan(playlists, true);
+                    }
+                    catch (Exception ex)
+                    {
+                        scanResult.FileExceptions[streamFile.Name] = ex;
+                    }
+                    finally
+                    {
+                        long fileBytes = streamFile.FileInfo != null ? streamFile.FileInfo.Length : 0;
+                        reporter.ReportFileCompleted(fileBytes);
+                    }
+                });
+
+                reporter.RenderFinal();
                 scanResult.ScanException = null;
             }
             catch (Exception ex)
@@ -101,56 +117,8 @@ namespace BDInfo
                 scanResult.ScanException = ex;
                 File.AppendAllText(errorLogPath, $"{ex}{Environment.NewLine}{Environment.NewLine}");
             }
-            finally
-            {
-                timer?.Dispose();
-            }
 
             return scanResult;
-        }
-
-        private static void ScanBDROMProgress(ScanBDROMState scanState)
-        {
-            try
-            {
-                if (scanState.StreamFile == null)
-                {
-                    Console.Write("\rStarting Scan");
-                }
-                else
-                {
-                    Console.Write($"\rScanning {scanState.StreamFile.DisplayName}");
-                }
-
-                long finishedBytes = scanState.FinishedBytes;
-                if (scanState.StreamFile != null)
-                {
-                    finishedBytes += scanState.StreamFile.Size;
-                }
-
-                double progress = ((double)finishedBytes / scanState.TotalBytes);
-                double progressValue = Math.Clamp(100 * progress, 0, 100);
-
-                TimeSpan elapsedTime = DateTime.Now.Subtract(scanState.TimeStarted);
-                TimeSpan remainingTime;
-                if (progress > 0 && progress < 1)
-                {
-                    remainingTime = new TimeSpan(
-                            (long)((double)elapsedTime.Ticks / progress) - elapsedTime.Ticks);
-                }
-                else
-                {
-                    remainingTime = new TimeSpan(0);
-                }
-
-                Console.Write($" | Progress: {progressValue,6:F2}%");
-                Console.Write($" | Elapsed: {elapsedTime.Hours:D2}:{elapsedTime.Minutes:D2}:{elapsedTime.Seconds:D2}");
-                Console.Write($" | Remaining: {remainingTime.Hours:D2}:{remainingTime.Minutes:D2}:{remainingTime.Seconds:D2}");
-            }
-            catch
-            {
-                // Suppress progress reporting errors
-            }
         }
 
         private static void ScanBDROMCompleted(ScanBDROMResult scanResult, BDROM bdrom, BDInfoSettings settings, string productVersion, string errorLogPath, string debugLogPath)
@@ -178,26 +146,6 @@ namespace BDInfo
                 {
                     Console.WriteLine("Scan completed successfully.");
                 }
-            }
-        }
-
-        private static void ScanBDROMEvent(object state)
-        {
-            ScanBDROMProgress(state as ScanBDROMState);
-        }
-
-        private static void ScanBDROMThread(object parameter)
-        {
-            ScanBDROMState scanState = (ScanBDROMState)parameter;
-            try
-            {
-                TSStreamFile streamFile = scanState.StreamFile;
-                List<TSPlaylistFile> playlists = scanState.PlaylistMap[streamFile.Name];
-                streamFile.Scan(playlists, true);
-            }
-            catch (Exception ex)
-            {
-                scanState.Exception = ex;
             }
         }
     }

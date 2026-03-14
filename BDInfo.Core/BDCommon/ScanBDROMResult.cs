@@ -1,11 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
+using System;
+using System.Collections.Concurrent;
 
 namespace BDCommon
 {
   public class ScanBDROMResult
   {
     public Exception ScanException = new Exception("Scan has not been run.");
-    public Dictionary<string, Exception> FileExceptions = new Dictionary<string, Exception>();
+    public ConcurrentDictionary<string, Exception> FileExceptions = new ConcurrentDictionary<string, Exception>();
   }
 }

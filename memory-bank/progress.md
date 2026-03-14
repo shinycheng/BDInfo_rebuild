@@ -37,11 +37,22 @@
 - **验证**: `dotnet build` 成功（0 错误），`--help` 输出包含 `-t, --threads` 参数说明。`-t 1` 扫描测试盘 `Mean.Guns.1997.Complete.BluRay-LAZERS`，报告与基线 `diff` 比较**完全一致**。
 
 ## 阶段 3：Stream 文件级并行化
-- [ ] 步骤 3.1 — 重构 ScanBDROMState 为线程安全版本
-- [ ] 步骤 3.2 — 重构 ScanBDROMResult 使用 ConcurrentDictionary
-- [ ] 步骤 3.3 — 新建 ThreadSafeProgressReporter 类
-- [ ] 步骤 3.4 — 将 BDROMScanner 扫描循环改为 Parallel.ForEach
-- [ ] 步骤 3.5 — 审计并添加 Playlist 写回锁
+- [x] 步骤 3.1 — 重构 ScanBDROMState 为线程安全版本
+  - **完成时间**: 2026-03-15
+  - **变更**: 移除 `StreamFile`、`Exception` 字段和 `OnReportChange` 事件。`ScanBDROMState` 仅保留 `TotalBytes`（long 字段）和 `PlaylistMap`（初始化后只读）。文件从 20 行缩减至 9 行。
+- [x] 步骤 3.2 — 重构 ScanBDROMResult 使用 ConcurrentDictionary
+  - **完成时间**: 2026-03-15
+  - **变更**: `FileExceptions` 从 `Dictionary<string, Exception>` 改为 `ConcurrentDictionary<string, Exception>`，支持多线程安全写入。
+- [x] 步骤 3.3 — 新建 ThreadSafeProgressReporter 类
+  - **完成时间**: 2026-03-15
+  - **变更**: 新建 `BDCommon/ThreadSafeProgressReporter.cs`（78 行）。使用 `Interlocked.Add` 原子累加 `_finishedBytes`，`Interlocked.CompareExchange` 实现 500ms 节流。输出格式与原版一致（百分比 + 已用时间 + 剩余时间）。提供 `RenderFinal()` 方法输出最终 100% 进度。
+- [x] 步骤 3.4 — 将 BDROMScanner 扫描循环改为 Parallel.ForEach
+  - **完成时间**: 2026-03-15
+  - **变更**: 删除 `ScanBDROMThread`、`ScanBDROMEvent`、`ScanBDROMProgress` 方法和 `Timer` 创建。将串行 `foreach` + `Thread` + `while(IsAlive)` 替换为 `Parallel.ForEach`，通过 `ParallelOptions.MaxDegreeOfParallelism = settings.MaxThreads` 控制并发度。`ClearBitrates` 提前到独立循环中一次性完成。`BDROMScanner.cs` 从 205 行缩减至 152 行。
+- [x] 步骤 3.5 — 审计并添加 Playlist 写回锁
+  - **完成时间**: 2026-03-15
+  - **变更**: 在 `TSStreamFile.UpdateStreamBitrates()` 和 `UpdateStreamBitrate()` 的 `foreach playlist` 循环体内添加 `lock (playlist) { ... }` 保护，防止多 stream 并行写入同一 playlist 引起数据竞争。
+- **验证**: `dotnet build` 成功（0 错误），等待用户提供测试盘进行 `-t 1` 基线对比和并行运行验证。
 
 ## 阶段 4：多光盘级并行
 - [ ] 步骤 4.1 — 重构 Exec() 消除全局状态依赖
