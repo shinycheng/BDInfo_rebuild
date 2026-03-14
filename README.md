@@ -1,80 +1,119 @@
 # BDInfo
 
-It scans bluray disc (full hd, ultra hd and 3D) on various operating systems. The binaries provided are portable so no need to install any framework.
+蓝光光盘扫描工具，支持 Full HD、Ultra HD 和 3D 蓝光光盘，可在多种操作系统上运行。提供的二进制文件为便携版，无需安装任何框架。
 
-## Command arguments
+## ✨ 特性
 
-| Short argument | Long argument | Meaning | Required | Default |
+- **多核并行扫描** — 使用 `Parallel.ForEach` 实现 Stream 文件级和多光盘级并行，显著提升扫描速度
+- **可配置并发度** — 通过 `-t / --threads` 参数控制最大并行线程数，默认使用全部 CPU 核心
+- **完全向后兼容** — `-t 1` 退化为串行扫描，输出与原版完全一致
+- **线程安全** — 使用 `Interlocked` 原子操作、`ConcurrentDictionary` 和 `lock(playlist)` 保护并发安全
+- **错误隔离** — 单个文件扫描失败不影响其他文件
+
+## 命令行参数
+
+| 短参数 | 长参数 | 说明 | 必填 | 默认值 |
 | --- | --- | --- | --- | --- |
-| _`-p`_ | _`--path`_ | The path to iso or bluray folder | x |  |
-| _`-g`_ | _`--generatestreamdiagnostics`_ | Generate the stream diagnostics |  | False |
-| _`-e`_ | _`--extendedstreamdiagnostics`_ | Generete the extended stream diagnostics |  | False |
-| _`-b`_ | _`--enablessif`_ | Enable SSIF support |  | False |
-| _`-l`_ | _`--filterloopingplaylists`_ | Filter loopig playlist |  | False |
-| _`-y`_ | _`--filtershortplaylist`_ | Filter short playlist |  | True |
-| _`-v`_ | _`--filtershortplaylistvalue`_ | Filter number of short playlist |  | 20 |
-| _`-k`_ | _`--keepstreamorder`_ | Keep stream order |  | False |
-| _`-m`_ | _`--generatetextsummary`_ | Generate summary |  | True |
-| _`-o`_ | _`--reportfilename`_ | The report filename with extension. If no extension provided then will append .txt at end of filename |  |  |
-| _`-q`_ | _`--includeversionandnotes`_ | Include version and notes inside report |  | False |
-| _`-j`_ | _`--groupbytime`_ | Group by time |  | False |
+| `-p` | `--path` | ISO 文件或蓝光文件夹路径 | ✅ |  |
+| `-t` | `--threads` | 最大并行扫描线程数 |  | CPU 核心数 |
+| `-o` | `--reportfilename` | 报告文件名（含扩展名）。未提供扩展名时自动添加 `.txt` |  |  |
+| `-g` | `--generatestreamdiagnostics` | 生成流诊断信息 |  | False |
+| `-e` | `--extendedstreamdiagnostics` | 生成扩展流诊断信息 |  | False |
+| `-b` | `--enablessif` | 启用 SSIF 支持 |  | False |
+| `-l` | `--filterloopingplaylists` | 过滤循环播放列表 |  | False |
+| `-y` | `--filtershortplaylist` | 过滤短播放列表 |  | True |
+| `-v` | `--filtershortplaylistvalue` | 短播放列表过滤阈值 |  | 20 |
+| `-k` | `--keepstreamorder` | 保持流顺序 |  | False |
+| `-m` | `--generatetextsummary` | 生成文本摘要 |  | True |
+| `-q` | `--includeversionandnotes` | 在报告中包含版本和注释 |  | False |
+| `-j` | `--groupbytime` | 按时间分组 |  | False |
 
+Linux 用户需先赋予执行权限：`chmod +x BDInfo`
 
-For linux, make `BDInfo` as executable (yes, that one without extension) using `chmod +x BDInfo`
-
-## How to use 
+## 使用方法
 
 ### Windows
-`BDInfo.exe -p PATH_TO_DISC_FOLDER -o PATH_TO_FILE.EXTENSION`  
-`BDInfo.exe -p PATH_TO_ISO_FILE -o PATH_TO_FILE.EXTENSION`  
+```bash
+# 扫描蓝光文件夹
+BDInfo.exe -p 蓝光文件夹路径 -o 报告文件路径.bdinfo
 
-### Linux  
-`./BDInfo -p PATH_TO_DISC_FOLDER -o PATH_TO_FILE.EXTENSION`  
-`./BDInfo -p PATH_TO_ISO_FILE -o PATH_TO_FILE.EXTENSION`
+# 扫描 ISO 文件
+BDInfo.exe -p ISO文件路径 -o 报告文件路径.bdinfo
+
+# 指定线程数（例如 4 线程）
+BDInfo.exe -p 蓝光文件夹路径 -t 4 -o 报告文件路径.bdinfo
+
+# 串行模式（与原版行为一致）
+BDInfo.exe -p 蓝光文件夹路径 -t 1 -o 报告文件路径.bdinfo
+```
+
+### Linux / macOS
+```bash
+# 扫描蓝光文件夹
+./BDInfo -p 蓝光文件夹路径 -o 报告文件路径.bdinfo
+
+# 扫描 ISO 文件
+./BDInfo -p ISO文件路径 -o 报告文件路径.bdinfo
+
+# 指定线程数
+./BDInfo -p 蓝光文件夹路径 -t 4 -o 报告文件路径.bdinfo
+```
+
+---
 
 # BDExtractor
 
-It extract bluray disc iso file on various operating systems without neeed to mount it (except non-EEF iso). The binaries provided are portable so no need to install any framework.
+蓝光光盘 ISO 提取工具，无需挂载即可提取（非 EEF ISO 除外）。提供的二进制文件为便携版，无需安装任何框架。
 
-## Command arguments
+## 命令行参数
 
-| Short argument | Long argument | Meaning | Required |
+| 短参数 | 长参数 | 说明 | 必填 |
 | --- | --- | --- | --- |
-| _`-p`_ | _`--path`_ | The path to iso file | x |
-| _`-o`_ | _`--output`_ | The output folder (if not specified then will extract in same location with iso) |  |
+| `-p` | `--path` | ISO 文件路径 | ✅ |
+| `-o` | `--output` | 输出文件夹（未指定时提取到 ISO 同目录） |  |
 
-For linux, make `BDExtractor` as executable (yes, that one without extension) using `chmod +x BDExtractor`
+Linux 用户需先赋予执行权限：`chmod +x BDExtractor`
 
-## How to use
-
-### Windows
-`BDExtractor.exe -p PATH_TO_ISO_FILE -o FOLDER_OUTPUT`  
-`BDExtractor.exe -p PATH_TO_ISO_FILE`  
-
-### Linux:  
-`./BDExtractor -p PATH_TO_ISO_FILE -o FOLDER_OUTPUT`
-`./BDExtractor -p PATH_TO_ISO_FILE`
-
-# BDInfoDataSubstractor (beta)
-
-It extracts main playlist from very long text based on many criteria
-
-## How to use
+## 使用方法
 
 ### Windows
-`BDInfoDataSubstractor.exe bdinfo.txt bdinfo2.txt`
+```bash
+BDExtractor.exe -p ISO文件路径 -o 输出文件夹
+BDExtractor.exe -p ISO文件路径
+```
 
-### Linux
-`./BDInfoDataSubstractor bdinfo.txt bdinfo2.txt`
+### Linux / macOS
+```bash
+./BDExtractor -p ISO文件路径 -o 输出文件夹
+./BDExtractor -p ISO文件路径
+```
 
+---
 
+# BDInfoDataSubstractor（测试版）
 
-# Known issue
+从扫盘报告文本中根据多种条件提取主播放列表信息。
+
+## 使用方法
+
+### Windows
+```bash
+BDInfoDataSubstractor.exe bdinfo.txt bdinfo2.txt
+```
+
+### Linux / macOS
+```bash
+./BDInfoDataSubstractor bdinfo.txt bdinfo2.txt
+```
+
+---
+
+# 已知问题
 
 https://github.com/DiscUtils/DiscUtils/issues/199
 
 [![Build x64](https://github.com/dotnetcorecorner/BDInfo/actions/workflows/dotnet.yml/badge.svg)](https://github.com/dotnetcorecorner/BDInfo/actions/workflows/dotnet.yml)
 
-# Statistics
+# 统计
 
 ![GitHub release (by tag)](https://img.shields.io/github/downloads/dotnetcorecorner/bdinfo/win-1.0.0/total?style=flat-square)  ![GitHub release (by tag)](https://img.shields.io/github/downloads/dotnetcorecorner/bdinfo/linux-1.0.0/total?style=flat-square)
