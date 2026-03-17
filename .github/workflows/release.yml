@@ -65,6 +65,17 @@ jobs:
           -p:IncludeNativeLibrariesForSelfExtract=true
           -o publish
 
+      # 发布 BDInfoDataSubstractor
+      - name: 发布 BDInfoDataSubstractor
+        run: >
+          dotnet publish BDInfo.Core/BDInfoDataSubstractor/BDInfoDataSubstractor.csproj
+          -c Release
+          -r ${{ matrix.rid }}
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -o publish
+
       # 打包压缩
       - name: 打包
         run: ${{ matrix.archive_cmd }}
