@@ -52,6 +52,7 @@ jobs:
           --self-contained true
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:DebugType=none
           -o publish
 
       # 发布 BDExtractor
@@ -63,6 +64,7 @@ jobs:
           --self-contained true
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:DebugType=none
           -o publish
 
       # 发布 BDInfoDataSubstractor
@@ -74,6 +76,7 @@ jobs:
           --self-contained true
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:DebugType=none
           -o publish
 
       # 打包压缩

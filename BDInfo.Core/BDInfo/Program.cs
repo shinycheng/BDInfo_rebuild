@@ -76,6 +76,7 @@ namespace BDInfo
                             {
                                 File.AppendAllLines(debug, [Environment.NewLine, $"move file from {reports[0]} to {bigReport}", Environment.NewLine]);
                                 File.Move(reports[0], bigReport);
+                                TryDeleteFile(debug);
                                 return;
                             }
 
@@ -90,12 +91,14 @@ namespace BDInfo
                             }
                         }
 
+                        TryDeleteFile(debug);
                         return;
                     }
                 }
 
                 BDROM singleBdrom = BDROMInitializer.InitBDROM(opts.Path, bdinfoSettings, error);
                 BDROMScanner.ScanBDROM(singleBdrom, bdinfoSettings, ProductVersion, error, debug);
+                TryDeleteFile(debug);
             }
             catch (Exception ex)
             {
@@ -145,8 +148,21 @@ namespace BDInfo
 
             BDROM bdrom = BDROMInitializer.InitBDROM(discOpts.Path, discSettings, discError);
             BDROMScanner.ScanBDROM(bdrom, discSettings, ProductVersion, discError, discDebug);
+            TryDeleteFile(discDebug);
 
             return reportPath;
+        }
+
+        private static void TryDeleteFile(string path)
+        {
+            try
+            {
+                if (File.Exists(path)) File.Delete(path);
+            }
+            catch
+            {
+                // best-effort cleanup, ignore errors
+            }
         }
     }
 }
