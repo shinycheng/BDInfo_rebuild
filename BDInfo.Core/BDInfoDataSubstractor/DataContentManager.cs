@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace BDInfoDataSubstractor
@@ -88,7 +88,7 @@ namespace BDInfoDataSubstractor
                     continue;
                 }
 
-                if (quickStart && _allowedQuickSummary.Any(c => line.StartsWith(c)))
+                if (quickStart && _allowedQuickSummary.Any(c => line.TrimStart('*', ' ').StartsWith(c)))
                 {
                     sb.AppendLine(line);
                     indexEmptyLine = 0;
